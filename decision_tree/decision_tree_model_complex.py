@@ -14,20 +14,13 @@ G = nx.DiGraph()
 
 attrs = ["outlook","temp","humidity","wind"]
 attrs_type = {"outlook":"string","temp":"string","humidity":"string","wind":"string"}
-#attrs =["age", "job", "marital", "education", "default", "housing", "loan", "contact", "month", "day_of_week", "duration",\
-#        "campaign", "pdays", "previous", "poutcome", "emp_var_rate", "cons_price_idx", "cons_conf_idx", "euribor3m", "nr_employed"]
-#attrs_type = {'age':'int','job':'string',"marital":"string","education":"string","default":"string",\
-#              "housing":"string","loan":"string","contact":"string","month":"string","day_of_week":"string", \
-#              "duration":"int","campaign":"int","pdays":"int","previous":"int","poutcome":"string",\
-#              "emp_var_rate":"double","cons_price_idx":"double","cons_conf_idx":"double",\
-#              "euribor3m":"double","nr_employed":"int"}
 
 
 def calculate_info_gain(entropy, joined_df, total_elements):
     attr_entropy = 0.0
     for anAttributeData in joined_df.rdd.collect():
         yes_class_count = anAttributeData[1]
-        no_class_count =  anAttributeData[2]
+        no_class_count = anAttributeData[2]
         if yes_class_count is None:
             yes_class_count = 0
         elif no_class_count is None:
@@ -44,23 +37,23 @@ def calculate_info_gain(entropy, joined_df, total_elements):
     return gain
 
 
-def get_attr_info_gain(attr_name, data, entropy, total_elements, where_condition):
+def get_attr_info_gain_data_prep(attr_name, data, entropy, total_elements, where_condition):
 
     if not where_condition:
         attr_grp_y = data.where(col('y') == 'yes').groupBy(attr_name).agg({"y": 'count'})\
-            .withColumnRenamed('count(y)','bought_count')
+            .withColumnRenamed('count(y)','played_count')
     else:
         attr_grp_y = data.where(" y like '%yes%'  " + where_condition).groupBy(attr_name).agg({"y": 'count'})\
-            .withColumnRenamed('count(y)','bought_count')
+            .withColumnRenamed('count(y)','played_count')
 
     if not where_condition:
         attr_grp_n = data.where(col('y') == 'no').groupBy(attr_name).agg({"y": 'count'})\
             .withColumnRenamed(attr_name,'n_' + attr_name)\
-            .withColumnRenamed('count(y)','not_bought_count')
+            .withColumnRenamed('count(y)','not_played_count')
     else:
         attr_grp_n = data.where(" y like '%no%'  " + where_condition).groupBy(attr_name).agg({"y": 'count'})\
             .withColumnRenamed(attr_name,'n_' + attr_name)\
-            .withColumnRenamed('count(y)','not_bought_count')
+            .withColumnRenamed('count(y)','not_played_count')
 
     joined_df = attr_grp_y.join(attr_grp_n, on = [col(attr_grp_y.columns[0]) == col(attr_grp_n.columns[0])], how='outer' )\
         .withColumn("total", col(attr_grp_y.columns[0]) + col(attr_grp_n.columns[0]))\
@@ -89,9 +82,9 @@ def calculate_entropy(total_elements, elements_in_each_class):
     return entropy
 
 
-def process_dataset(excludedAttrs, data, subscribed, unsubscribed, where_condition):
-    total_elements = subscribed + unsubscribed
-    subs_info = {"subscribed" : subscribed, "unsubscribed" : unsubscribed}
+def process_dataset(excludedAttrs, data, played, notplayed, where_condition):
+    total_elements = played + notplayed
+    subs_info = {"played" : played, "notplayed" : notplayed}
     entropy = calculate_entropy(total_elements, subs_info)
     print "entropy is " + str(entropy)
     global attr_name_info_gain
@@ -99,7 +92,7 @@ def process_dataset(excludedAttrs, data, subscribed, unsubscribed, where_conditi
 
     for attr in attrs:
         if attr not in excludedAttrs:
-            get_attr_info_gain(attr, data, entropy, total_elements, where_condition)
+            get_attr_info_gain_data_prep(attr, data, entropy, total_elements, where_condition)
 
 
 def build_tree(max_gain_attr, processed_attrs, data, where_condition):
@@ -153,11 +146,11 @@ def build_tree(max_gain_attr, processed_attrs, data, where_condition):
 def main():
     data = sqlContext.read.format('com.databricks.spark.csv').option('header', 'true')\
         .option('delimiter', ';').load("/home/sandeepkhurana/ml/practice/decision_tree/datasets/simple_dataset")
-    # #.option('delimiter', ';').load("/home/sandeepkhurana/ml/practice/decision_tree/datasets/bank-additional-full.csv")
+
     data.registerTempTable('data')
-    subscribed = sqlContext.sql("select * from data WHERE y like  '%y%' ").count()
-    unsubscribed = sqlContext.sql("select * from data WHERE y like  '%n%' ").count()
-    process_dataset([], data, subscribed, unsubscribed, '')
+    played = sqlContext.sql("select * from data WHERE y like  '%y%' ").count()
+    notplayed = sqlContext.sql("select * from data WHERE y like  '%n%' ").count()
+    process_dataset([], data, played, notplayed, '')
     # sort by info gain
     sorted_by_info_gain = sorted(attr_name_info_gain.items(), key=operator.itemgetter(1), reverse=True)
 
