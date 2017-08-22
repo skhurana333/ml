@@ -108,17 +108,17 @@ def build_tree(max_gain_attr, processed_attrs, data, where_condition):
         else:
             where_condition = str(orig_where_condition + " and " + max_gain_attr + "==" + adistinct_value_for_attr)
 
-        subscribed_for_attr = sqlContext.sql("select * from data where y like '%yes%' " + where_condition).count()
-        unsubscribed_for_attr = sqlContext.sql("select * from data where y like '%no%' " + where_condition).count()
+        played_for_attr = sqlContext.sql("select * from data where y like '%yes%' " + where_condition).count()
+        notplayed_for_attr = sqlContext.sql("select * from data where y like '%no%' " + where_condition).count()
         # if either has zero value then entropy for this attr will be zero and its the last attr in the tree
         leaf_values = []
-        if subscribed_for_attr == 0 or unsubscribed_for_attr == 0:
+        if played_for_attr == 0 or notplayed_for_attr == 0:
             leaf_node = sqlContext.sql("select distinct y from data where 1==1 " + where_condition)
             for leaf_node_data in leaf_node.rdd.collect():
                 G.add_edges_from([(adistinct_value_for_attr, str(leaf_node_data[0]))])
             continue
 
-        process_dataset(processed_attrs, data, subscribed_for_attr, unsubscribed_for_attr, where_condition)
+        process_dataset(processed_attrs, data, played_for_attr, notplayed_for_attr, where_condition)
         if not attr_name_info_gain: # we processed all attributes
             # attach leaf node
             leaf_node = sqlContext.sql("select distinct y from data where 1==1 " + where_condition)
